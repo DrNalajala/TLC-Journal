@@ -11,7 +11,7 @@ import type { ArticleStatus, ReviewComment, Role, StatusEvent, Submission, User 
 import { DEMO_USERS, SEED_SUBMISSIONS } from "../data/seed";
 import { CURRENT_YEAR, ID_PREFIX } from "../data/constants";
 
-const STORE_KEY = "tlcj-store-v3";
+const STORE_KEY = "tlcj-store-v4";
 
 export interface Toast {
   id: number;
@@ -64,7 +64,7 @@ function loadInitial(): PersistedState {
     users: DEMO_USERS,
     submissions: SEED_SUBMISSIONS,
     currentUserId: null,
-    nextArticleNumber: 6,
+    nextArticleNumber: 1,
   };
 }
 

@@ -12,7 +12,7 @@ export const JOURNAL_NAME = "TLC Journal";
 export const JOURNAL_SUBTITLE =
   "Thin-Layer Chromatography: A Basic Need in Every Chemist's Laboratory";
 export const JOURNAL_MOTTO = "Small experiments. Clear observations. Useful chemistry.";
-export const JOURNAL_ISSN = "ISSN 3041-8821 (Online) · Continuous publication";
+export const EDITORIAL_EMAIL = "drnalajala@gmail.com";
 export const CURRENT_VOLUME = 1;
 export const CURRENT_YEAR = 2026;
 export const ID_PREFIX = "TLCJ";

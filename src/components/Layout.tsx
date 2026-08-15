@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useStore, hasRole } from "../store/AppStore";
-import { JOURNAL_ISSN, JOURNAL_SUBTITLE } from "../data/constants";
+import { EDITORIAL_EMAIL, JOURNAL_MOTTO, JOURNAL_SUBTITLE } from "../data/constants";
 import { IMenu, IPlate, IX, Toasts } from "./ui";
 
 const NAV = [
@@ -40,7 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* top info strip */}
       <div className="border-b border-line bg-navydeep text-[#c6d2e0]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1.5 font-mono text-[0.64rem] tracking-[0.08em] sm:px-6">
-          <span className="hidden sm:inline">{JOURNAL_ISSN}</span>
+          <span className="hidden font-semibold uppercase tracking-[0.16em] sm:inline">{JOURNAL_MOTTO}</span>
           <span className="sm:hidden">Vol. 1 · 2026</span>
           <span className="flex items-center gap-4">
             <span className="hidden md:inline">Vol. 1 · Continuous publication</span>
@@ -196,8 +196,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <h4 className="font-mono text-[0.66rem] font-bold uppercase tracking-[0.18em] text-uv">Editorial office</h4>
             <p className="mt-4 text-[0.82rem] leading-relaxed text-[#9db1c7]">
               TLC Journal Editorial Office<br />
-              c/o Institute of Practical Chromatography<br />
-              office@tlcjournal.example
+              <a href={`mailto:${EDITORIAL_EMAIL}`} className="text-uv transition-colors hover:text-uvglow">{EDITORIAL_EMAIL}</a>
             </p>
             <p className="mt-4 text-[0.7rem] leading-relaxed text-[#7a90a8]">
               Practical TLC Communications are concise laboratory observations — not
@@ -208,7 +207,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="border-t border-white/10">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 font-mono text-[0.62rem] tracking-[0.08em] text-[#7a90a8] sm:flex-row sm:px-6">
             <span>© 2026 TLC Journal · Open access · CC BY 4.0</span>
-            <span>Demonstration build — demo articles are fictional</span>
+            <span>One TLC. One observation. One page.</span>
           </div>
         </div>
       </footer>

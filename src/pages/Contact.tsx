@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store/AppStore";
-import { Btn, Field, IMail, IPin, IUsers, Reveal, SectionHead } from "../components/ui";
+import { EDITORIAL_EMAIL } from "../data/constants";
+import { Btn, Field, IMail, IUsers, Reveal, SectionHead } from "../components/ui";
 
 const FAQS = [
   {
@@ -55,9 +56,8 @@ export default function Contact() {
           <Reveal delay={80}>
             <div className="space-y-4">
               {[
-                { icon: <IMail size={18} />, t: "Editorial office", d: "office@tlcjournal.example — submissions, decisions, corrections." },
+                { icon: <IMail size={18} />, t: "Editorial office", d: `${EDITORIAL_EMAIL} — submissions, decisions, corrections.` },
                 { icon: <IUsers size={18} />, t: "Editor-in-Chief", d: "Dr. Elena Marsh — appeals, board matters, special collections." },
-                { icon: <IPin size={18} />, t: "Post", d: "TLC Journal Editorial Office, c/o Institute of Practical Chromatography, CH-8000 Zürich (demo address)." },
               ].map((c) => (
                 <div key={c.t} className="flex gap-4 border border-line bg-sheet p-5 transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <span className="grid h-11 w-11 shrink-0 place-items-center border border-navy/40 bg-sky text-navy">{c.icon}</span>
