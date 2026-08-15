@@ -4,7 +4,7 @@ import { useStore } from "../store/AppStore";
 import ArticleSheet from "../components/ArticleSheet";
 import MiniPlate from "../components/MiniPlate";
 import {
-  Btn, DemoTag, IArrow, IDownload, IPlate, IQuote, IShare, IStamp,
+  Btn, DemoTag, IAlert, IArrow, IDownload, IPlate, IQuote, IShare, IStamp,
   Modal, Reveal, StatusBadge, Tag,
 } from "../components/ui";
 import { JOURNAL_NAME } from "../data/constants";
@@ -13,13 +13,15 @@ import { downloadArticlePdf } from "../utils/pdf";
 
 export default function ArticlePage() {
   const { id } = useParams();
-  const { submissions, toast } = useStore();
+  const { submissions, toast, currentUser, requestCorrection } = useStore();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [certOpen, setCertOpen] = useState(false);
   const [citeOpen, setCiteOpen] = useState(false);
+  const [corrOpen, setCorrOpen] = useState(false);
+  const [corrText, setCorrText] = useState("");
 
   const article = useMemo(
-    () => submissions.find((s) => s.articleId === id && s.status === "published"),
+    () => submissions.find((s) => s.articleId === id),
     [submissions, id],
   );
 
@@ -52,7 +54,7 @@ export default function ArticlePage() {
     };
   }, [article]);
 
-  if (!article) {
+  if (!article || (article.status !== "published" && article.status !== "withdrawn")) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-24 text-center">
         <p className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.2em] text-[#a33327]">404 · Article not found</p>
@@ -66,6 +68,33 @@ export default function ArticlePage() {
       </div>
     );
   }
+
+  /* withdrawn articles keep their permanent URL but show the withdrawal record (§31) */
+  if (article.status === "withdrawn") {
+    return (
+      <div className="graph-paper min-h-screen">
+        <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
+          <p className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.22em] text-[#a33327]">Article withdrawn</p>
+          <h1 className="mt-4 font-display text-3xl font-black tracking-tight text-ink sm:text-4xl">{article.title}</h1>
+          <p className="mt-2 font-mono text-[0.72rem] uppercase tracking-[0.1em] text-inkfaint">
+            {article.articleId} · withdrawn {article.withdrawn?.date ?? "—"}
+          </p>
+          <div className="mx-auto mt-7 max-w-xl border-2 border-[#a33327] bg-[#faece9] px-6 py-5 text-left">
+            <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[#7c2b22]">Withdrawal notice</p>
+            <p className="mt-2 text-[0.88rem] leading-relaxed text-[#7c2b22]">
+              <strong>Reason:</strong> {article.withdrawn?.reason ?? "—"}. Withdrawn by {article.withdrawn?.by ?? "the editorial office"}.
+              The scientific record is retained in the journal archive and is never erased.
+            </p>
+          </div>
+          <Link to="/browse" className="mt-8 inline-flex items-center gap-2 border border-navy px-5 py-2.5 font-mono text-[0.72rem] font-bold uppercase tracking-[0.12em] text-navy hover:bg-navy hover:text-white">
+            Browse TLCs <IArrow size={13} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const approvedCorrections = article.corrections.filter((c) => c.status === "approved");
 
   const onPdf = async () => {
     setPdfBusy(true);
@@ -103,6 +132,8 @@ export default function ArticlePage() {
               <span className="font-bold text-navy">{article.articleId}</span>
               <span className="ml-2"><StatusBadge status="published" /></span>
               {article.demo && <DemoTag />}
+              <span className="border border-line bg-paper px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.1em] text-inksoft">DOI: Not assigned</span>
+              {article.correctedVersion > 1 && <Tag tone="amber">Corrected · Version {article.correctedVersion}</Tag>}
             </div>
             <h1 className="mt-4 max-w-3xl font-display text-3xl font-black leading-tight tracking-tight text-ink sm:text-[2.6rem]">
               {article.title}
@@ -140,10 +171,29 @@ export default function ArticlePage() {
               <Btn variant="ghost" size="sm" onClick={() => setCertOpen(true)}>
                 <IStamp size={14} /> Certificate
               </Btn>
+              {currentUser && (
+                <Btn variant="ghost" size="sm" onClick={() => setCorrOpen(true)}>
+                  <IAlert size={14} /> Request correction
+                </Btn>
+              )}
               <span className="ml-auto hidden items-center font-mono text-[0.62rem] uppercase tracking-[0.1em] text-inkfaint sm:flex">
                 Published {article.publishedAt} · CC BY 4.0
               </span>
             </div>
+
+            {/* correction history — never silently altered (§30) */}
+            {approvedCorrections.length > 0 && (
+              <div className="mt-3 border-l-2 border-[#b45309] bg-[#faf3e0] px-3.5 py-2.5">
+                <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[#6d4a0d]">Correction history</p>
+                {approvedCorrections.map((c) => (
+                  <p key={c.id} className="mt-1 text-[0.78rem] leading-relaxed text-[#6d4a0d]">
+                    <strong>Corrected version issued {c.approvedDate}</strong> — {c.description}
+                    {c.editorNote ? <span className="italic"> (Editor: {c.editorNote})</span> : null}
+                  </p>
+                ))}
+                <p className="mt-1.5 text-[0.68rem] italic text-[#8a5a12]">The original published version remains part of the scientific record.</p>
+              </div>
+            )}
           </Reveal>
         </div>
       </div>
@@ -280,6 +330,38 @@ export default function ArticlePage() {
         <div className="flex justify-end gap-2 border-t border-line px-6 py-4 print:hidden">
           <Btn variant="ghost" onClick={() => setCertOpen(false)}>Close</Btn>
           <Btn onClick={() => window.print()}><IStamp size={14} /> Print certificate</Btn>
+        </div>
+      </Modal>
+
+      {/* correction request modal (§30) */}
+      <Modal open={corrOpen} onClose={() => setCorrOpen(false)}>
+        <div className="px-6 py-5">
+          <h3 className="font-display text-xl font-bold text-ink">Request a correction</h3>
+          <p className="mt-2 text-[0.82rem] leading-relaxed text-inksoft">
+            Published records are never silently altered. Your request goes to the editorial office;
+            if approved, a corrected version is issued and the correction is logged in the article's history.
+          </p>
+          <textarea
+            rows={4}
+            className="field-input mt-3 resize-y"
+            placeholder="Describe the error precisely — e.g. 'The mobile phase ratio should read 40:60, not 30:70.'"
+            value={corrText}
+            onChange={(e) => setCorrText(e.target.value)}
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => setCorrOpen(false)}>Cancel</Btn>
+            <Btn
+              variant="accent"
+              disabled={corrText.trim().length < 10}
+              onClick={() => {
+                requestCorrection(article.id, corrText.trim());
+                setCorrText("");
+                setCorrOpen(false);
+              }}
+            >
+              Submit correction request
+            </Btn>
+          </div>
         </div>
       </Modal>
     </div>

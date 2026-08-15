@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useStore, hasRole } from "../store/AppStore";
 import { EDITORIAL_EMAIL, JOURNAL_MOTTO, JOURNAL_SUBTITLE } from "../data/constants";
-import { IMenu, IPlate, IX, Toasts } from "./ui";
+import { IBell, IMenu, IPlate, IX, Toasts } from "./ui";
 
 const NAV = [
   { to: "/", label: "Home" },
@@ -24,9 +24,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }, [loc.pathname]);
 
-  const links = currentUser && hasRole(currentUser.role, ["admin", "editor", "reviewer"])
-    ? [...NAV, { to: "/dashboard", label: "Editorial" }]
-    : NAV;
+  const links =
+    currentUser && hasRole(currentUser.role, ["admin", "editor", "reviewer"])
+      ? [...NAV, { to: "/dashboard", label: "Editorial" }]
+      : currentUser
+        ? [...NAV, { to: "/dashboard", label: "My Submissions" }]
+        : NAV;
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `relative px-1 py-1.5 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
@@ -88,6 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            {currentUser && <NotificationBell />}
             {currentUser ? (
               <Link
                 to="/submit"
@@ -212,6 +216,80 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
       <Toasts />
+    </div>
+  );
+}
+
+/* ---------------- notification center (§36) ---------------- */
+
+function NotificationBell() {
+  const { notifications, currentUser, markNotificationRead, markAllNotificationsRead } = useStore();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  if (!currentUser) return null;
+
+  const mine = notifications
+    .filter((n) => n.audience === currentUser.id || (n.audience === "staff" && currentUser.role !== "author"))
+    .reverse();
+  const unread = mine.filter((n) => !n.read).length;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative grid h-10 w-10 place-items-center border border-line bg-white text-navy transition-colors hover:border-navy"
+        aria-label="Notifications"
+      >
+        <IBell size={17} />
+        {unread > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 grid h-4.5 min-w-[18px] place-items-center rounded-full bg-[#a33327] px-1 font-mono text-[0.58rem] font-bold text-white">
+            {unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <button className="fixed inset-0 z-[64] cursor-default" onClick={() => setOpen(false)} aria-label="Close notifications" />
+          <div className="absolute right-0 z-[65] mt-2 w-[min(92vw,380px)] border-2 border-ink bg-sheet shadow-[8px_8px_0_rgba(16,35,59,0.15)]">
+            <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+              <span className="font-mono text-[0.64rem] font-bold uppercase tracking-[0.16em] text-navy">Notifications</span>
+              {unread > 0 && (
+                <button onClick={markAllNotificationsRead} className="font-mono text-[0.6rem] font-bold uppercase tracking-[0.08em] text-inkfaint hover:text-navy">
+                  Mark all read
+                </button>
+              )}
+            </div>
+            <div className="max-h-[380px] overflow-y-auto scrollbar-slim">
+              {mine.length === 0 ? (
+                <p className="px-4 py-8 text-center text-[0.78rem] italic text-inkfaint">
+                  No notifications yet. Submission receipts, decisions and proofs will appear here.
+                </p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {mine.map((n) => (
+                    <li key={n.id}>
+                      <button
+                        onClick={() => {
+                          markNotificationRead(n.id);
+                          setOpen(false);
+                          if (n.link) navigate(n.link);
+                        }}
+                        className={`flex w-full items-start gap-2.5 px-4 py-3 text-left transition-colors hover:bg-sky/60 ${n.read ? "" : "bg-uvglow/25"}`}
+                      >
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read ? "bg-[#cfd8e0]" : "bg-uvdeep"}`} />
+                        <span className="min-w-0">
+                          <span className={`block text-[0.78rem] leading-snug ${n.read ? "text-inksoft" : "font-semibold text-ink"}`}>{n.text}</span>
+                          <span className="mt-0.5 block font-mono text-[0.58rem] uppercase tracking-[0.08em] text-inkfaint">{n.date}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

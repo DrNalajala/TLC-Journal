@@ -7,12 +7,12 @@ import type {
 import { estimatePagePct, useStore } from "../store/AppStore";
 import {
   Btn, Field, IAlert, ICheck, IChevron, IDownload, IPlus, IRotate, ITrash, IUpload,
-  IX, Modal, PageGauge, DotScale, Tag,
+  IX, Modal, PageGauge, DotScale, StatusBadge, Tag,
 } from "../components/ui";
 import {
-  ARTICLE_TYPES, CHAMBER_CONDITIONS, COMMON_SOLVENTS, DESCRIPTION_LIMIT, ID_PREFIX,
-  INTERPRETATION_LIMIT, MAX_UPLOAD_MB, PLATE_TYPES, REACTION_STATUSES, RESEARCH_CONTEXTS,
-  SAMPLE_TYPES, SECTIONS, SPOT_STRENGTHS, STORY_LIMIT, VISUALIZATION_METHODS,
+  ARTICLE_TYPES, CHAMBER_CONDITIONS, COMMON_SOLVENTS, DESCRIPTION_LIMIT, FINAL_CHECKLIST,
+  ID_PREFIX, INTERPRETATION_LIMIT, MAX_UPLOAD_MB, PLATE_TYPES, REACTION_STATUSES,
+  RESEARCH_CONTEXTS, SAMPLE_TYPES, SECTIONS, SPOT_STRENGTHS, STORY_LIMIT, VISUALIZATION_METHODS,
 } from "../data/constants";
 import ArticleSheet from "../components/ArticleSheet";
 
@@ -30,7 +30,9 @@ function blankSubmission(userName = "", userEmail = ""): Submission {
   a.fullName = userName;
   a.email = userEmail;
   return {
-    id: `s-${Date.now()}`, articleId: null, status: "draft",
+    id: `s-${Date.now()}`, submissionId: null, articleId: null, status: "draft",
+    revisionNumber: 1, revisionType: "",
+    assignedEditorId: null, assignedEditorName: "", assignedReviewerId: null, assignedReviewerName: "",
     title: "", articleType: "", keywords: [], authors: [a],
     schemeImage: "", schemeFileName: "", reactionDescription: "",
     plateType: "", plateManufacturer: "", plateDimensions: "",
@@ -51,6 +53,10 @@ function blankSubmission(userName = "", userEmail = ""): Submission {
     createdAt: new Date().toISOString().slice(0, 10), updatedAt: "", submittedAt: "", publishedAt: "",
     history: [{ status: "draft", date: new Date().toISOString().slice(0, 10), by: userName || "Author" }],
     checklist: {}, comments: [],
+    techCheck: {}, techReturnReason: "", reviews: [], decisionNote: "",
+    productionChecklist: {}, proofRequested: false, authorProofApproved: false,
+    withdrawn: null, corrections: [], correctedVersion: 1,
+    fileVersions: { tlc: [], scheme: [] }, revisions: [],
   };
 }
 
@@ -68,7 +74,10 @@ function improveClarity(text: string): string {
 export default function Submit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { submissions, currentUser, saveSubmission, setStatus, toast } = useStore();
+  const {
+    submissions, currentUser, saveSubmission, toast,
+    submitToJournal, resubmitRevision, addFileVersion, nextSubmissionId,
+  } = useStore();
 
   const existing = useMemo(() => submissions.find((s) => s.id === id), [submissions, id]);
 
@@ -80,7 +89,12 @@ export default function Submit() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [kwInput, setKwInput] = useState("");
+  const [finalChecks, setFinalChecks] = useState<Record<number, boolean>>({});
+  const [revisionSummary, setRevisionSummary] = useState("");
+  const [successInfo, setSuccessInfo] = useState<{ subId: string; revision: boolean } | null>(null);
   const saveTimer = useRef<number | null>(null);
+
+  const inRevision = form.status === "revision_required" || form.status === "technical_revision";
 
   /* keep form in sync if the draft was edited elsewhere */
   useEffect(() => {
@@ -136,7 +150,66 @@ export default function Submit() {
     );
   }
 
-  const locked = !["draft", "revision_required", "resubmitted"].includes(form.status) && form.status !== "draft";
+  const locked = !["draft", "revision_required", "technical_revision"].includes(form.status);
+
+  /* -------- post-submission confirmation screen (§6) -------- */
+  if (successInfo) {
+    return (
+      <div className="graph-paper min-h-screen">
+        <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+          <div className="border-2 border-ink bg-sheet p-8 shadow-[10px_10px_0_rgba(16,35,59,0.12)] sm:p-10">
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 place-items-center border-2 border-uvdeep bg-uvglow/40 text-uvdeep">
+                <ICheck size={24} strokeWidth={2.5} />
+              </span>
+              <p className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.2em] text-uvdeep">
+                {successInfo.revision ? "Revision received successfully" : "Submission received successfully"}
+              </p>
+            </div>
+            <h1 className="mt-4 font-display text-3xl font-black tracking-tight text-ink sm:text-4xl">{form.title}</h1>
+            <dl className="mt-6 grid gap-x-8 gap-y-4 border-y-2 border-ink py-5 sm:grid-cols-2">
+              <div>
+                <dt className="field-label">Submission ID</dt>
+                <dd className="mt-1 font-mono text-xl font-bold text-navy">{successInfo.subId}</dd>
+              </div>
+              <div>
+                <dt className="field-label">Date</dt>
+                <dd className="mt-1 text-[0.95rem] font-medium text-ink">{new Date().toISOString().slice(0, 10)}</dd>
+              </div>
+              <div>
+                <dt className="field-label">Current status</dt>
+                <dd className="mt-1.5"><StatusBadge status={successInfo.revision ? "resubmitted" : "submitted"} /></dd>
+              </div>
+              <div>
+                <dt className="field-label">Publication ID</dt>
+                <dd className="mt-1 text-[0.95rem] font-medium text-inksoft">Assigned on acceptance ({ID_PREFIX}-2026-00001…)</dd>
+              </div>
+            </dl>
+            <div className="mt-5 border-l-2 border-navy bg-sky px-4 py-3">
+              <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.16em] text-navy">Expected next step</p>
+              <p className="mt-1 text-[0.85rem] leading-relaxed text-navy">
+                {successInfo.revision
+                  ? "Your revised submission has been received by the TLC Journal editorial team and returned to scientific review."
+                  : "Your submission has been received by the TLC Journal editorial team and is undergoing technical screening."}{" "}
+                A confirmation email has been logged for the corresponding author and the editorial office.
+              </p>
+            </div>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <button onClick={() => navigate(`/submission/${form.id}`)} className="border-2 border-navy bg-navy px-6 py-3 font-mono text-[0.72rem] font-bold uppercase tracking-[0.14em] text-white transition-all hover:-translate-y-0.5">
+                View submission
+              </button>
+              <button onClick={() => navigate("/dashboard")} className="border border-navy px-6 py-3 font-mono text-[0.72rem] font-bold uppercase tracking-[0.14em] text-navy hover:bg-sky">
+                Go to dashboard
+              </button>
+              <button onClick={() => { setSuccessInfo(null); navigate("/"); }} className="ml-auto px-4 py-3 font-mono text-[0.68rem] font-bold uppercase tracking-[0.12em] text-inkfaint hover:text-navy">
+                Back to journal
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   /* ---------------- validation ---------------- */
   const validate = (): Record<string, string> => {
@@ -177,7 +250,8 @@ export default function Submit() {
     toast("Draft saved. You can finish it any time.", "ok");
   };
 
-  const onSubmit = () => {
+  /** Final submission — generates the submission ID or records the revision (§4–§6). */
+  const doSubmit = () => {
     const e = validate();
     setErrors(e);
     if (Object.keys(e).length > 0) {
@@ -186,16 +260,46 @@ export default function Submit() {
       document.getElementById(Object.keys(e)[0])?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    if (!FINAL_CHECKLIST.every((_, i) => finalChecks[i])) {
+      toast("Please confirm all nine statements in the final checklist.", "bad");
+      setConfirmOpen(false);
+      document.getElementById("sec-final")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (inRevision && revisionSummary.trim().length < 5) {
+      toast("Please summarise the changes made in this revision.", "bad");
+      setConfirmOpen(false);
+      return;
+    }
+    // stop any pending autosave so it cannot overwrite the submitted state
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    setDirty(false);
     saveSubmission(form);
-    const target = form.status === "revision_required" ? "resubmitted" : "submitted";
-    setStatus(form.id, target, target === "resubmitted" ? "Revised version submitted by author." : "Submitted via author form.");
-    toast(
-      target === "resubmitted"
-        ? "Revised version submitted — back into the editorial queue."
-        : "Submitted — the editorial office begins the technical check.",
-      "ok",
-    );
-    navigate("/dashboard");
+    if (inRevision) {
+      resubmitRevision(form.id, revisionSummary.trim());
+      setSuccessInfo({ subId: form.submissionId ?? "—", revision: true });
+    } else {
+      const subId = submitToJournal(form.id);
+      setSuccessInfo({ subId, revision: false });
+    }
+    setConfirmOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /** Replacing a file on an existing submission archives it as a new version — originals are never overwritten (§12). */
+  const versionedScheme = (data: string, name: string) => {
+    const had = !!form.schemeImage || form.fileVersions.scheme.length > 0;
+    up({ schemeImage: data, schemeFileName: name });
+    if (data && had && submissions.some((x) => x.id === form.id)) {
+      addFileVersion(form.id, "scheme", data, name, "Replaced in submission editor — previous original preserved.");
+    }
+  };
+  const versionedTlc = (data: string, name: string) => {
+    const had = !!form.tlcImage || form.fileVersions.tlc.length > 0;
+    up({ tlcImage: data, tlcImageName: name, rotate: 0 });
+    if (data && had && submissions.some((x) => x.id === form.id)) {
+      addFileVersion(form.id, "tlc", data, name, "Replaced in submission editor — previous original preserved.");
+    }
   };
 
   const sectionDone = (sid: string): boolean => {
@@ -374,7 +478,7 @@ export default function Submit() {
             <ImageDrop
               value={form.schemeImage}
               fileName={form.schemeFileName}
-              onChange={(data, name) => up({ schemeImage: data, schemeFileName: name })}
+              onChange={versionedScheme}
               accept="image/png,image/jpeg,image/svg+xml"
               formats="PNG · JPG · SVG · PDF export"
               tall={false}
@@ -527,7 +631,7 @@ export default function Submit() {
                 id="tlcImage"
                 value={form.tlcImage}
                 fileName={form.tlcImageName}
-                onChange={(data, name) => up({ tlcImage: data, tlcImageName: name, rotate: 0 })}
+                onChange={versionedTlc}
                 accept="image/png,image/jpeg,image/webp"
                 formats="PNG · JPG · WEBP"
                 tall
@@ -755,6 +859,64 @@ export default function Submit() {
               </div>
             )}
           </Section>
+
+          {/* O — Final submission */}
+          {!locked && (
+            <section id="sec-final" className="scroll-mt-28 border-2 border-ink bg-navydeep p-6 text-[#f2f4f0] shadow-[8px_8px_0_rgba(16,35,59,0.15)] sm:p-7">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 pb-4">
+                <div>
+                  <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.22em] text-uv">Final step</p>
+                  <h2 className="mt-1 font-display text-2xl font-black">Submit to TLC Journal</h2>
+                </div>
+                <span className="border border-uv/50 bg-uv/10 px-3 py-1.5 font-mono text-[0.66rem] font-bold uppercase tracking-[0.12em] text-uv">
+                  {inRevision ? `Will record revision R${form.revisionNumber + 1}` : `ID on submit: ${form.submissionId ?? nextSubmissionId()}`}
+                </span>
+              </div>
+
+              {inRevision && (
+                <div className="mt-5">
+                  <label className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#9db1c7]">Summary of changes in this revision *</label>
+                  <textarea
+                    rows={2}
+                    className="mt-2 w-full resize-y rounded-[4px] border border-white/20 bg-white/10 px-3 py-2.5 text-[0.9rem] text-white placeholder:text-[#7a90a8] focus:border-uv focus:outline-none"
+                    placeholder="e.g. Clarified the mobile phase composition; identified Lane 4 as the co-spot."
+                    value={revisionSummary}
+                    onChange={(e) => setRevisionSummary(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="mt-5">
+                <p className="font-mono text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#9db1c7]">Confirmation checklist — all nine required</p>
+                <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                  {FINAL_CHECKLIST.map((c, i) => (
+                    <label key={i} className={`flex cursor-pointer items-start gap-2.5 border px-3 py-2.5 transition-colors ${finalChecks[i] ? "border-uv/60 bg-uv/10" : "border-white/15 bg-white/5 hover:border-white/40"}`}>
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 accent-[#7cc24a]"
+                        checked={!!finalChecks[i]}
+                        onChange={(e) => setFinalChecks((f) => ({ ...f, [i]: e.target.checked }))}
+                      />
+                      <span className="text-[0.78rem] leading-relaxed text-[#dbe4ee]">{c}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col items-stretch gap-3 border-t border-white/15 pt-5 sm:flex-row sm:items-center">
+                <p className="flex-1 text-[0.75rem] leading-relaxed text-[#9db1c7]">
+                  On submission, the editorial office is notified immediately. Your submission enters
+                  <strong className="text-white"> technical screening</strong>; you will receive email updates for every decision.
+                </p>
+                <button
+                  onClick={() => setConfirmOpen(true)}
+                  className="border-2 border-uv bg-uv px-8 py-4 font-mono text-[0.8rem] font-bold uppercase tracking-[0.16em] text-navydeep transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-10px_rgba(124,194,74,0.8)]"
+                >
+                  {inRevision ? "Resubmit revision" : "Submit to TLC Journal"}
+                </button>
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
@@ -790,7 +952,7 @@ export default function Submit() {
               }
               setConfirmOpen(true);
             }}>
-              Submit for review <IChevron size={14} />
+              {inRevision ? "Resubmit revision" : "Submit for review"} <IChevron size={14} />
             </Btn>
           </div>
         </div>
@@ -822,20 +984,22 @@ export default function Submit() {
       {/* confirm modal */}
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <div className="px-6 py-5">
-          <h3 className="font-display text-xl font-bold text-ink">Submit "{form.title}" for review?</h3>
+          <h3 className="font-display text-xl font-bold text-ink">
+            {inRevision ? "Resubmit this revised contribution for editorial review?" : "Are you ready to submit this TLC contribution for editorial review?"}
+          </h3>
           <p className="mt-2 text-[0.85rem] leading-relaxed text-inksoft">
-            Your submission enters the editorial workflow: <strong className="text-ink">Technical Check → Editorial
-            Review → Decision</strong>. You will be notified if a revision is required. The article identifier
-            ({ID_PREFIX}-2026-xxxxx) is assigned upon acceptance.
+            {inRevision
+              ? `Your revision will be recorded as Version R${form.revisionNumber + 1} and returned to the editorial queue. Previous versions and the original files are preserved.`
+              : <>Your submission enters the editorial workflow: <strong className="text-ink">Technical Check → Scientific Review → Decision</strong>. You will be notified by email at every stage. The submission identifier <strong className="font-mono text-navy">{form.submissionId ?? nextSubmissionId()}</strong> is generated immediately; the article identifier ({ID_PREFIX}-2026-xxxxx) is assigned upon acceptance.</>}
           </p>
           <ul className="mt-4 space-y-1.5 text-[0.8rem] text-ink">
-            {["Original TLC photograph attached", "Lane assignments defined", "Visualization sequence reported", "All declarations confirmed"].map((t) => (
+            {["Original TLC photograph attached", "Lane assignments defined", "Visualization sequence reported", "All declarations confirmed", "Final nine-point checklist confirmed"].map((t) => (
               <li key={t} className="flex items-center gap-2"><ICheck size={14} className="text-uvdeep" /> {t}</li>
             ))}
           </ul>
           <div className="mt-6 flex justify-end gap-2">
-            <Btn variant="ghost" onClick={() => setConfirmOpen(false)}>Keep editing</Btn>
-            <Btn variant="accent" onClick={onSubmit}>Confirm submission</Btn>
+            <Btn variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Btn>
+            <Btn variant="accent" onClick={doSubmit}>{inRevision ? "Resubmit revision" : "Submit"}</Btn>
           </div>
         </div>
       </Modal>

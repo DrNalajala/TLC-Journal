@@ -1,9 +1,10 @@
 /* ============================================================
    TLC Journal — relational data model (frontend mirror of the
-   backend schema: Users, Authors, Submissions, Articles,
-   Reactions, TLC Conditions, Lanes, Images, Visualization
-   Methods, Reviews, Comments, Versions, Keywords, Categories,
-   Editorial Decisions, Audit Logs)
+   backend schema: Users, Author Profiles, Submissions,
+   Submission Versions, Submission Files, Reviews, Review
+   Comments, Author Responses, Editorial Decisions, Publications,
+   Publication Proofs, Publication Events, Notifications,
+   Email Logs, Audit Logs)
    ============================================================ */
 
 export type Role = "admin" | "editor" | "reviewer" | "author" | "reader";
@@ -12,12 +13,16 @@ export type ArticleStatus =
   | "draft"
   | "submitted"
   | "technical_check"
-  | "editorial_review"
+  | "technical_revision"
+  | "editorial_review" // displayed as "Under Review"
   | "revision_required"
   | "resubmitted"
   | "accepted"
+  | "production"
+  | "proof_ready"
+  | "published"
   | "rejected"
-  | "published";
+  | "withdrawn";
 
 export type ArticleType =
   | "Reaction Monitoring"
@@ -68,6 +73,8 @@ export type ResearchContext =
   | "Personal research"
   | "Industrial research — authorized for publication"
   | "";
+
+export type RevisionType = "minor" | "major" | "";
 
 export interface User {
   id: string;
@@ -143,6 +150,8 @@ export interface ReviewComment {
   text: string;
   date: string;
   authorResponse?: string;
+  editorResponse?: string;
+  resolved?: boolean;
 }
 
 export interface StatusEvent {
@@ -161,17 +170,83 @@ export interface Declarations {
   scheme: boolean;
 }
 
+/* ------------------ new workflow entities ------------------ */
+
+export type ReviewCriterionValue = "" | "Excellent" | "Acceptable" | "Needs improvement";
+
+/** TLC Journal Scientific Review (§16) */
+export interface ScientificReview {
+  id: string;
+  reviewerName: string;
+  reviewerRole: Role;
+  date: string;
+  scientificClarity: ReviewCriterionValue;
+  tlcDocumentation: ReviewCriterionValue;
+  reactionDescription: ReviewCriterionValue;
+  interpretation: "" | "Scientifically reasonable" | "Needs clarification";
+  imageQuality: "" | "Acceptable" | "Unacceptable";
+  originality: "" | "Acceptable" | "Concern";
+  practicalValue: "" | "High" | "Moderate" | "Low";
+  recommendation: "" | "Accept" | "Minor Revision" | "Major Revision" | "Reject";
+  comments: string;
+}
+
+/** Versioned original file — originals are never overwritten (§12). */
+export interface FileVersion {
+  version: number;
+  data: string; // dataURL or asset path
+  fileName: string;
+  uploadedBy: string;
+  date: string;
+  note: string;
+}
+
+/** Revision history record (§20). */
+export interface RevisionRecord {
+  version: number;
+  date: string;
+  by: string;
+  changes: string;
+  files: string[];
+  decision?: string;
+}
+
+export interface Correction {
+  id: string;
+  requestedBy: string;
+  date: string;
+  description: string;
+  status: "pending" | "approved" | "rejected";
+  editorNote?: string;
+  approvedDate?: string;
+}
+
+export interface WithdrawalInfo {
+  by: string;
+  date: string;
+  reason: string;
+}
+
 export interface Submission {
   id: string;
+  /** TLC-SUB-YYYY-NNNNN — generated at submission time. Never reused. */
+  submissionId: string | null;
   /** TLCJ-YYYY-NNNNN — assigned on acceptance. Null until then. */
   articleId: string | null;
   status: ArticleStatus;
+  revisionNumber: number; // 1 = original submission
+  revisionType: RevisionType; // set with the latest revision decision
   title: string;
   articleType: ArticleType | "";
   keywords: string[];
   authors: AuthorInfo[];
+  /* assignments */
+  assignedEditorId: string | null;
+  assignedEditorName: string;
+  assignedReviewerId: string | null;
+  assignedReviewerName: string;
   /* reaction */
-  schemeImage: string; // dataURL or asset path
+  schemeImage: string; // dataURL or asset path (latest display copy)
   schemeFileName: string;
   reactionDescription: string;
   /* TLC conditions */
@@ -183,7 +258,7 @@ export interface Submission {
   spottingNotes: string;
   lanes: Lane[];
   /* original TLC photograph */
-  tlcImage: string; // dataURL or asset path
+  tlcImage: string; // latest display copy — originals kept in fileVersions
   tlcImageName: string;
   originalKept: boolean;
   rotate: number; // display-only rotation, original preserved
@@ -203,6 +278,19 @@ export interface Submission {
   /* ethics */
   researchContext: ResearchContext;
   declarations: Declarations;
+  /* editorial workflow */
+  techCheck: Record<string, boolean>; // technical screening (§13)
+  techReturnReason: string;
+  reviews: ScientificReview[];
+  decisionNote: string; // latest editorial decision comment
+  productionChecklist: Record<string, boolean>; // production (§22)
+  proofRequested: boolean; // author proof requested
+  authorProofApproved: boolean;
+  withdrawn: WithdrawalInfo | null;
+  corrections: Correction[];
+  correctedVersion: number; // 1 = original published version
+  fileVersions: { tlc: FileVersion[]; scheme: FileVersion[] };
+  revisions: RevisionRecord[];
   /* publication */
   volume: number;
   issue: number;
@@ -217,18 +305,41 @@ export interface Submission {
   demo?: boolean;
 }
 
-export interface EditorialStats {
-  total: number;
-  drafts: number;
-  underReview: number;
-  revisionRequired: number;
-  accepted: number;
-  rejected: number;
-  published: number;
-  publishedThisMonth: number;
-  avgReviewDays: number;
-  authorCount: number;
-  countries: string[];
-  categoryCounts: { label: string; count: number }[];
-  vizCounts: { label: string; count: number }[];
+/* ------------------ platform entities ------------------ */
+
+export interface Notification {
+  id: string;
+  audience: string; // user id, or "staff" for all editorial roles
+  text: string;
+  date: string;
+  read: boolean;
+  link?: string; // route, e.g. /submission/<id>
+}
+
+export interface EmailLogEntry {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  provider: string;
+  date: string; // ISO timestamp
+}
+
+export interface AuditEvent {
+  id: string;
+  user: string;
+  date: string; // ISO timestamp
+  action: string;
+  submissionId?: string; // internal id
+  ref?: string; // TLC-SUB-… or TLCJ-…
+  prevStatus?: ArticleStatus;
+  newStatus?: ArticleStatus;
+  comment?: string;
+}
+
+export interface JournalSettings {
+  journalEmail: string; // configurable editorial office address (§37)
+  emailProvider: "log-only" | "smtp" | "resend" | "sendgrid" | "ses";
+  anonymousReview: boolean;
+  emailTemplates: Record<string, string>; // editable by admin (§35)
 }

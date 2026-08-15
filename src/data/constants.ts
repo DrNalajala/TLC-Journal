@@ -8,6 +8,7 @@ import type {
   SpotStrength,
 } from "../types";
 
+export const SUB_PREFIX = "TLC-SUB";
 export const JOURNAL_NAME = "TLC Journal";
 export const JOURNAL_SUBTITLE =
   "Thin-Layer Chromatography: A Basic Need in Every Chemist's Laboratory";
@@ -138,24 +139,139 @@ export const STATUS_META: Record<
   draft: { label: "Draft", short: "DRA", tone: "slate" },
   submitted: { label: "Submitted", short: "SUB", tone: "blue" },
   technical_check: { label: "Technical Check", short: "TEC", tone: "violet" },
-  editorial_review: { label: "Editorial Review", short: "REV", tone: "amber" },
+  technical_revision: { label: "Technical Revision", short: "TRV", tone: "red" },
+  editorial_review: { label: "Under Review", short: "REV", tone: "amber" },
   revision_required: { label: "Revision Required", short: "MAJ", tone: "red" },
-  resubmitted: { label: "Resubmitted", short: "RES", tone: "blue" },
+  resubmitted: { label: "Revision Submitted", short: "RES", tone: "blue" },
   accepted: { label: "Accepted", short: "ACC", tone: "green" },
-  rejected: { label: "Rejected", short: "REJ", tone: "red" },
+  production: { label: "Production", short: "PRD", tone: "amber" },
+  proof_ready: { label: "Proof Ready", short: "PRF", tone: "violet" },
   published: { label: "Published", short: "PUB", tone: "navy" },
+  rejected: { label: "Rejected", short: "REJ", tone: "red" },
+  withdrawn: { label: "Withdrawn", short: "WDR", tone: "slate" },
 };
 
 export const STATUS_FLOW: ArticleStatus[] = [
   "draft",
   "submitted",
   "technical_check",
+  "technical_revision",
   "editorial_review",
   "revision_required",
   "resubmitted",
   "accepted",
-  "rejected",
+  "production",
+  "proof_ready",
   "published",
+  "rejected",
+  "withdrawn",
+];
+
+/* ------------------ editorial workflow ------------------ */
+
+/** Technical screening checklist (§13) */
+export const TECH_SCREEN_ITEMS: { key: string; label: string }[] = [
+  { key: "imageReadable", label: "TLC image readable" },
+  { key: "declaration", label: "Original image declaration completed" },
+  { key: "schemePresent", label: "Reaction scheme present" },
+  { key: "mobilePhase", label: "Mobile phase reported" },
+  { key: "plate", label: "TLC plate reported" },
+  { key: "lanes", label: "Sample lanes identified" },
+  { key: "visualization", label: "Visualization method reported" },
+  { key: "description", label: "Reaction description understandable" },
+  { key: "onePage", label: "Article within one-page requirement" },
+  { key: "noConfidential", label: "No obvious confidential information" },
+];
+
+export const TECH_RETURN_REASONS = [
+  "Missing TLC conditions",
+  "Poor image quality",
+  "Missing reaction scheme",
+  "Unclear lane labels",
+  "Missing visualization details",
+  "Insufficient reaction description",
+  "Other",
+];
+
+/** Production checklist (§22) */
+export const PRODUCTION_ITEMS: { key: string; label: string }[] = [
+  { key: "names", label: "Author names verified" },
+  { key: "affiliation", label: "Affiliation verified" },
+  { key: "scheme", label: "Reaction scheme verified" },
+  { key: "photo", label: "TLC photograph verified" },
+  { key: "conditions", label: "TLC conditions verified" },
+  { key: "viz", label: "Visualization sequence verified" },
+  { key: "proofread", label: "Article text proofread" },
+  { key: "layout", label: "One-page layout generated" },
+  { key: "pdf", label: "PDF generated" },
+  { key: "metadata", label: "Article metadata generated" },
+  { key: "authorProof", label: "Final author proof approved" },
+];
+
+/** Scientific review form criteria (§16) */
+export const REVIEW_CRITERIA = [
+  { key: "scientificClarity", label: "Scientific clarity", options: ["Excellent", "Acceptable", "Needs improvement"] },
+  { key: "tlcDocumentation", label: "TLC documentation", options: ["Excellent", "Acceptable", "Needs improvement"] },
+  { key: "reactionDescription", label: "Reaction description", options: ["Excellent", "Acceptable", "Needs improvement"] },
+  { key: "interpretation", label: "TLC interpretation", options: ["Scientifically reasonable", "Needs clarification"] },
+  { key: "imageQuality", label: "Image quality", options: ["Acceptable", "Unacceptable"] },
+  { key: "originality", label: "Originality", options: ["Acceptable", "Concern"] },
+  { key: "practicalValue", label: "Practical value", options: ["High", "Moderate", "Low"] },
+] as const;
+
+export const REVIEW_RECOMMENDATIONS = ["Accept", "Minor Revision", "Major Revision", "Reject"];
+
+export const WITHDRAW_REASONS = [
+  "Duplicate submission",
+  "Error discovered in the observation",
+  "Data no longer authorized for publication",
+  "Author request",
+  "Editorial decision",
+  "Other",
+];
+
+/** Configurable email templates (§35). Placeholders: {{id}} {{title}} {{author}} {{date}} {{link}} {{journalEmail}} */
+export const EMAIL_TEMPLATE_KEYS = [
+  "submissionReceived",
+  "technicalRevision",
+  "reviewDecision",
+  "revisionReceived",
+  "acceptance",
+  "proofReady",
+  "publication",
+  "withdrawal",
+] as const;
+
+export const DEFAULT_EMAIL_TEMPLATES: Record<(typeof EMAIL_TEMPLATE_KEYS)[number], string> = {
+  submissionReceived:
+    "Dear {{author}},\n\nYour TLC contribution \"{{title}}\" has been received by the TLC Journal editorial team and is undergoing technical screening.\n\nSubmission ID: {{id}}\nDate: {{date}}\n\nYou can track the status at any time by signing in to your dashboard.\n\nWith best regards,\nTLC Journal Editorial Office ({{journalEmail}})",
+  technicalRevision:
+    "Dear {{author}},\n\nYour submission {{id}} requires technical correction before scientific review. Please log in to view the editorial comments and upload the corrected material.\n\nWith best regards,\nTLC Journal Editorial Office",
+  reviewDecision:
+    "Dear {{author}},\n\nAn editorial decision has been made on your submission {{id}} (\"{{title}}\"). Please log in to your dashboard to read the decision and the editor's comments.\n\nWith best regards,\nTLC Journal Editorial Office",
+  revisionReceived:
+    "Dear {{author}},\n\nYour revised submission {{id}} has been received and returned to the editorial workflow. Thank you for addressing the reviewers' comments.\n\nWith best regards,\nTLC Journal Editorial Office",
+  acceptance:
+    "Dear {{author}},\n\nCongratulations — your submission {{id}} (\"{{title}}\") has been accepted for publication in TLC Journal. The article will now enter production; you will be asked to approve the final proof before publication.\n\nWith best regards,\nTLC Journal Editorial Office",
+  proofReady:
+    "Dear {{author}},\n\nYour TLC Journal article has been accepted and is ready for final proof approval. Please log in, review the final one-page proof and approve it for publication or request a correction.\n\nWith best regards,\nTLC Journal Editorial Office",
+  publication:
+    "Dear {{author}},\n\nYour article \"{{title}}\" is now published in TLC Journal. The permanent page, one-page PDF and citation are available from your dashboard and the public journal.\n\nWith best regards,\nTLC Journal Editorial Office",
+  withdrawal:
+    "Dear {{author}},\n\nYour submission {{id}} has been withdrawn from the TLC Journal workflow. The scientific record is retained in the archive; please contact the editorial office with any questions.\n\nWith best regards,\nTLC Journal Editorial Office",
+};
+
+/** The nine confirmations shown before final submission (§5). */
+export const FINAL_CHECKLIST: string[] = [
+  "I have provided an original TLC photograph.",
+  "The TLC photograph represents my actual experimental observation.",
+  "I have provided an accurate reaction scheme.",
+  "I have accurately described the TLC conditions.",
+  "The information submitted is accurate.",
+  "I am authorized to submit this material.",
+  "The submission does not contain confidential/proprietary information that I am not authorized to disclose.",
+  "I understand that the submission will undergo editorial review.",
+  "I understand that acceptance does not guarantee publication until the final proof is approved.",
 ];
 
 export const COUNTRIES = [

@@ -190,6 +190,13 @@ export const IMail = mk(
     <path d="m3.5 7 8.5 6 8.5-6" />
   </>,
 );
+export const IBell = mk(
+  <>
+    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+  </>,
+);
+
 export const IPin = mk(
   <>
     <path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 1 1 13 0c0 5-6.5 11-6.5 11z" />
