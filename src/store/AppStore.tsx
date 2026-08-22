@@ -28,7 +28,7 @@ interface PersistedState {
   settings: JournalSettings;
 }
 
-const STORE_KEY = "tlcj-store-v5";
+const STORE_KEY = "tlcj-store-v6";
 
 const defaultSettings = (): JournalSettings => ({
   journalEmail: EDITORIAL_EMAIL,
@@ -60,8 +60,8 @@ function loadInitial(): PersistedState {
     users: DEMO_USERS,
     submissions: SEED_SUBMISSIONS,
     currentUserId: null,
-    nextArticleNumber: 1,
-    nextSubmissionNumber: 1,
+    nextArticleNumber: 6,
+    nextSubmissionNumber: 6,
     notifications: [],
     emailLogs: [],
     auditLog: [],
