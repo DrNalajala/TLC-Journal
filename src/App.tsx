@@ -1,5 +1,6 @@
 import { HashRouter, Link, Route, Routes } from "react-router-dom";
 import { AppStoreProvider } from "./store/AppStore";
+import { AdminStoreProvider } from "./admin/AdminStore";
 import Layout from "./components/Layout";
 import { IArrow } from "./components/ui";
 import Home from "./pages/Home";
@@ -12,6 +13,8 @@ import Guidelines from "./pages/Guidelines";
 import Knowledge from "./pages/Knowledge";
 import Auth from "./pages/Auth";
 import Contact from "./pages/Contact";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function NotFound() {
   return (
@@ -32,24 +35,31 @@ function NotFound() {
 export default function App() {
   return (
     <AppStoreProvider>
-      <HashRouter>
-        <Layout>
+      <AdminStoreProvider>
+        <HashRouter>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/browse" element={<Browse />} />
-            <Route path="/article/:id" element={<ArticlePage />} />
-            <Route path="/submit" element={<Submit />} />
-            <Route path="/submit/:id" element={<Submit />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/guidelines" element={<Guidelines />} />
-            <Route path="/knowledge" element={<Knowledge />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="*" element={<NotFound />} />
+            {/* Public routes */}
+            <Route path="/" element={<Layout><Home /></Layout>} />
+            <Route path="/about" element={<Layout><About /></Layout>} />
+            <Route path="/browse" element={<Layout><Browse /></Layout>} />
+            <Route path="/article/:id" element={<Layout><ArticlePage /></Layout>} />
+            <Route path="/submit" element={<Layout><Submit /></Layout>} />
+            <Route path="/submit/:id" element={<Layout><Submit /></Layout>} />
+            <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+            <Route path="/guidelines" element={<Layout><Guidelines /></Layout>} />
+            <Route path="/knowledge" element={<Layout><Knowledge /></Layout>} />
+            <Route path="/auth" element={<Layout><Auth /></Layout>} />
+            <Route path="/contact" element={<Layout><Contact /></Layout>} />
+            
+            {/* Admin routes - no Layout wrapper for isolated admin interface */}
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            
+            {/* 404 */}
+            <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
-        </Layout>
-      </HashRouter>
+        </HashRouter>
+      </AdminStoreProvider>
     </AppStoreProvider>
   );
 }
