@@ -28,7 +28,7 @@ interface PersistedState {
   settings: JournalSettings;
 }
 
-const STORE_KEY = "tlcj-store-v5";
+const STORE_KEY = "tlcj-store-v6";
 
 const defaultSettings = (): JournalSettings => ({
   journalEmail: EDITORIAL_EMAIL,
@@ -60,8 +60,8 @@ function loadInitial(): PersistedState {
     users: DEMO_USERS,
     submissions: SEED_SUBMISSIONS,
     currentUserId: null,
-    nextArticleNumber: 1,
-    nextSubmissionNumber: 1,
+    nextArticleNumber: 6,
+    nextSubmissionNumber: 6,
     notifications: [],
     emailLogs: [],
     auditLog: [],
@@ -1084,24 +1084,39 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateSettings = useCallback(
     (patch: Partial<JournalSettings>) => {
+      // Authorization check: only admin can update settings
+      if (!currentUser || currentUser.role !== 'admin') {
+        toast("Unauthorized: Only administrators can update settings.", "bad");
+        return;
+      }
       mutate((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
       toast("Journal settings saved.", "ok");
     },
-    [mutate, toast],
+    [currentUser, mutate, toast],
   );
 
   const updateEmailTemplate = useCallback(
     (key: (typeof EMAIL_TEMPLATE_KEYS)[number], body: string) => {
+      // Authorization check: only admin can update email templates
+      if (!currentUser || currentUser.role !== 'admin') {
+        toast("Unauthorized: Only administrators can update email templates.", "bad");
+        return;
+      }
       mutate((p) => ({
         ...p,
         settings: { ...p.settings, emailTemplates: { ...p.settings.emailTemplates, [key]: body } },
       }));
     },
-    [mutate],
+    [currentUser, mutate],
   );
 
   const updateUserRole = useCallback(
     (userId: string, role: Role) => {
+      // Authorization check: only admin can update user roles
+      if (!currentUser || currentUser.role !== 'admin') {
+        toast("Unauthorized: Only administrators can update user roles.", "bad");
+        return;
+      }
       const who = currentUser?.name ?? "Admin";
       mutate((p) => ({
         ...p,
@@ -1115,6 +1130,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const addUser = useCallback(
     (name: string, email: string, password: string, role: Role): string | null => {
+      // Authorization check: only admin can add users
+      if (!currentUser || currentUser.role !== 'admin') {
+        toast("Unauthorized: Only administrators can add users.", "bad");
+        return "Unauthorized";
+      }
       if (state.users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {
         return "An account with this email already exists.";
       }
